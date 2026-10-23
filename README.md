@@ -98,18 +98,18 @@ This server requires, per request:
 
 There is **no tenant header**. The credential is already tenant-scoped: an API key belongs to the tenant that minted it, and a JWT carries its tenant. To read a different tenant, pass `mspbots_user_list_users`' `tenant_id` argument — which only a platform-level credential is allowed to use.
 
-**凭证怎么转发**：`X-API-Key` 以 `mbk_` 开头时，下游收到 `X-API-Key: <token>`；否则按 JWT 处理，下游收到 `Authorization: Bearer <token>`。本服务不做任何换取/校验逻辑。
+**How credentials are forwarded**: when `X-API-Key` starts with `mbk_`, the downstream receives `X-API-Key: <token>`; otherwise it is handled as a JWT and the downstream receives `Authorization: Bearer <token>`. This service does no exchange/validation logic.
 
-### HEADER 授权参数说明
+### HEADER authentication parameters
 
-| Header | 类型 | 是否必填 | 默认值 | 枚举值 | 字段描述 | Example |
+| Header | Type | Required | Default | Allowed values | Description | Example |
 |---|---|---|---|---|---|---|
-| `X-API-Key` | string | 是 | 无 | 无（自由文本） | 平台凭证。推荐用租户 API key（`mbk_` 前缀）；也接受用户 JWT（主要用于调试）。 | `X-API-Key: mbk_xxx` |
-| `X-MSP-Host` | string | 是 | 无 | 无（自由文本，base URL） | Agent Platform 所在的 host。本服务会拼接内部 App API 路径得到完整请求地址。 | `X-MSP-Host: <platform-host>` |
+| `X-API-Key` | string | Yes | None | None (free text) | Platform credential. A tenant API key (`mbk_` prefix) is recommended; a user JWT is also accepted (mainly for debugging). | `X-API-Key: mbk_xxx` |
+| `X-MSP-Host` | string | Yes | None | None (free text, base URL) | Host where the Agent Platform runs. This service appends the internal App API path to get the full request URL. | `X-MSP-Host: <platform-host>` |
 
-> ⏳ **过渡期兼容（2026-09-21 起）**：`X-API-Key` 取代了原来的 `X-MSP-Token`。改名前写入的租户凭据仍以旧名存在注册库里、由网关原样注入，因此中间件在读不到 `X-API-Key` 时仍会回退读 `X-MSP-Token`。两个都在时以 `X-API-Key` 为准。等所有租户的凭据都按新名重存一遍后，删掉 `server.py` 里那段回退和 `tests/test_middleware.py::test_legacy_token_header_is_still_accepted`。
+> ⏳ **Transition-period compatibility (since 2026-09-21)**: `X-API-Key` replaces the former `X-MSP-Token`. Tenant credentials written before the rename still exist in the registry under the old name and are injected as-is by the gateway, so the middleware still falls back to reading `X-MSP-Token` when `X-API-Key` is absent. When both are present, `X-API-Key` wins. Once every tenant's credentials have been re-saved under the new name, delete that fallback in `server.py` and `tests/test_middleware.py::test_legacy_token_header_is_still_accepted`.
 >
-> 🚫 `X-MSP-Tenant-Id` 已移除，不再读取；传了也会被忽略。原先由它提供的 `mspbots_user_list_users` 默认租户，现在只能由工具参数 `tenant_id` 指定。
+> 🚫 `X-MSP-Tenant-Id` has been removed and is no longer read; it is ignored if sent. The default tenant of `mspbots_user_list_users`, which it used to provide, can now only be specified via the tool parameter `tenant_id`.
 
 Missing a required header returns `401`:
 ```json
@@ -122,10 +122,10 @@ Missing a required header returns `401`:
 
 ## Environment Variables
 
-| Variable | 类型 | 是否必填 | 默认值 | 说明 |
+| Variable | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `MCP_HTTP_PORT` | int | 否 | `8080` | HTTP 监听端口 |
-| `MCP_HTTP_HOST` | string | 否 | `0.0.0.0` | HTTP 监听地址 |
+| `MCP_HTTP_PORT` | int | No | `8080` | HTTP listen port |
+| `MCP_HTTP_HOST` | string | No | `0.0.0.0` | HTTP listen address |
 
 ## MCP Endpoint
 
@@ -134,16 +134,16 @@ Missing a required header returns `401`:
 
 ## Tool List
 
-| Tool | 功能 | 参数 |
+| Tool | Function | Parameters |
 |---|---|---|
-| `mspbots_user_list_tenants` | 分页获取全平台租户列表，支持关键字/启用状态/注册时间区间过滤（需平台级凭证） | page(可选,默认1), page_size(可选,默认20), search(可选), is_active(可选), created_from(可选), created_to(可选) |
-| `mspbots_user_list_users` | 分页获取单个租户的用户列表（可分配 owners，返回 id/email/username/displayName/部门/角色等） | page(可选,默认1), page_size(可选,默认20), tenant_id(可选), search(可选), department(可选), is_active(可选), sort_by(可选,默认 createdAt), sort_order(可选,默认 desc) |
+| `mspbots_user_list_tenants` | Get the platform-wide tenant list with pagination; supports filtering by keyword/enabled status/registration time range (requires a platform-level credential) | page (optional, default 1), page_size (optional, default 20), search (optional), is_active (optional), created_from (optional), created_to (optional) |
+| `mspbots_user_list_users` | Get the user list of a single tenant with pagination (can be assigned as owners; returns id/email/username/displayName/department/role, etc.) | page (optional, default 1), page_size (optional, default 20), tenant_id (optional), search (optional), department (optional), is_active (optional), sort_by (optional, default createdAt), sort_order (optional, default desc) |
 
-`mspbots_user_list_tenants` 的 `search`/`is_active`/`created_from`/`created_to` combine as AND; results are always sorted by `createdAt` descending; an invalid date value in `created_from`/`created_to` is silently ignored (not an error).
+`mspbots_user_list_tenants`: `search`/`is_active`/`created_from`/`created_to` combine as AND; results are always sorted by `createdAt` descending; an invalid date value in `created_from`/`created_to` is silently ignored (not an error).
 
-`mspbots_user_list_users` 始终只返回**一个租户**的用户：不传 `tenant_id` 时就是凭证自身的租户；只有平台级凭证能用 `tenant_id` 指定别的租户，其他凭证传了也会被下游忽略。`sort_by` 取值 `createdAt` / `email` / `displayName` / `department` / `lastLoginAt`。`page_size` 上限 100，超过会被削到 100。
+`mspbots_user_list_users` always returns the users of **one tenant** only: without `tenant_id` it is the credential's own tenant; only a platform-level credential can use `tenant_id` to specify another tenant, and for other credentials it is ignored downstream. `sort_by` accepts `createdAt` / `email` / `displayName` / `department` / `lastLoginAt`. `page_size` is capped at 100; larger values are clamped to 100.
 
-## 测试示例
+## Test Example
 
 ```bash
 # Health check
